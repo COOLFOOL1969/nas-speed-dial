@@ -1,0 +1,14 @@
+# Persönliche Daten nie hochladen:
+# Exporte aus der Erweiterung und Sicherungen vom NAS enthalten deine Links.
+speeddial*.json
+backups/
+
+# Gepackte Versionen
+*.zip
+*.crx
+*.pem
+
+# Systemdateien
+.DS_Store
+Thumbs.db
+desktop.ini

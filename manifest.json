@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "NAS Speed Dial",
+  "version": "1.4.0",
+  "description": "Speed Dial mit Gruppen und Vorschaubildern – gespeichert auf deiner Synology über WebDAV.",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "favicon",
+    "tabs",
+    "contextMenus"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "NAS Speed Dial öffnen",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  }
+}

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Neuer Tab</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+  <header class="topbar">
+    <nav id="groups" class="groups" aria-label="Gruppen"></nav>
+    <button id="addGroupBtn" class="plus-btn" title="Neue Gruppe">＋</button>
+    <div class="spacer"></div>
+    <div id="syncStatus" class="sync" title="">
+      <span class="dot"></span><span class="label">…</span>
+    </div>
+    <button id="lockBtn" class="power-btn" title="Speed Dial sperren" hidden><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 3v8" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M6.6 6.6a7.5 7.5 0 1 0 10.8 0" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg></button>
+    <button id="settingsBtn" class="icon-btn" title="Einstellungen">⚙</button>
+  </header>
+
+  <main>
+    <div id="grid" class="grid"></div>
+  </main>
+
+  <!-- Kachel bearbeiten -->
+  <dialog id="dialDialog">
+    <form method="dialog" id="dialForm">
+      <h2 id="dialDialogTitle">Seite hinzufügen</h2>
+      <label>Adresse (URL)
+        <input name="url" type="text" placeholder="https://www.beispiel.de" required>
+      </label>
+      <label>Name
+        <input name="title" type="text" placeholder="wird sonst aus der Adresse erzeugt">
+      </label>
+      <label>Gruppe
+        <select name="group"></select>
+      </label>
+      <div class="preview-box">
+        <div id="dialPreview" class="preview"></div>
+        <div class="preview-actions">
+          <button type="button" id="captureBtn">📷 Vorschau aufnehmen</button>
+          <label class="file-btn">🖼 Eigenes Bild…
+            <input name="image" type="file" accept="image/*" hidden>
+          </label>
+          <button type="button" id="removeImgBtn" class="link-btn" hidden>Eigenes Bild entfernen</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="deleteDialBtn" class="danger" hidden>Löschen</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Abbrechen</button>
+        <button value="ok" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Gruppe bearbeiten -->
+  <dialog id="groupDialog">
+    <form method="dialog" id="groupForm">
+      <h2 id="groupDialogTitle">Neue Gruppe</h2>
+      <label>Name der Gruppe
+        <input name="name" type="text" required>
+      </label>
+      <label class="check" id="takeTabsRow"><input name="takeTabs" type="checkbox">
+        <span id="takeTabsLabel">Alle offenen Tabs dieses Fensters übernehmen</span></label>
+      <div class="actions">
+        <button type="button" id="deleteGroupBtn" class="danger" hidden>Gruppe löschen</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Abbrechen</button>
+        <button value="ok" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="settingsDialog" class="wide">
+    <form method="dialog" id="settingsForm">
+      <h2>Einstellungen</h2>
+
+      <fieldset>
+        <legend>Synology NAS (WebDAV)</legend>
+        <label>Adresse zu Hause
+          <input name="nasUrl" type="text" placeholder="http://192.168.178.20:5005">
+        </label>
+        <label>Adresse unterwegs (optional)
+          <input name="nasUrlRemote" type="text" placeholder="leer lassen, wenn du WireGuard nutzt">
+        </label>
+        <label>Ordner auf dem NAS
+          <input name="nasPath" type="text" placeholder="/SpeedDial">
+        </label>
+        <div class="two">
+          <label>Benutzername
+            <input name="nasUser" type="text" autocomplete="off">
+          </label>
+          <label>Passwort
+            <input name="nasPass" type="password" autocomplete="new-password">
+          </label>
+        </div>
+        <div class="row">
+          <button type="button" id="testNasBtn">Verbindung testen</button>
+          <span id="testResult" class="muted"></span>
+        </div>
+        <p id="lastError" class="muted small"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Vorschaubilder</legend>
+        <label class="check"><input name="autoCapture" type="checkbox"> Beim Besuchen einer Seite automatisch Vorschau aufnehmen</label>
+        <div class="row">
+          <button type="button" id="captureAllBtn">Alle fehlenden Vorschauen jetzt aufnehmen</button>
+        </div>
+        <p class="muted small">Dabei öffnet sich jede Seite kurz in einem Tab und wird wieder geschlossen.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Aussehen</legend>
+        <label>Kachelbreite <span id="tileSizeVal" class="muted"></span>
+          <input name="tileSize" type="range" min="200" max="520" step="10">
+        </label>
+        <label>Kacheln pro Reihe (0 = automatisch)
+          <input name="columns" type="number" min="0" max="10">
+        </label>
+        <label class="check"><input name="showTitles" type="checkbox"> Namen unter den Kacheln anzeigen</label>
+        <label class="check"><input name="showAddTile" type="checkbox"> ＋-Kachel zum Hinzufügen anzeigen</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>PIN-Sperre</legend>
+        <label class="check"><input name="globalPinOn" type="checkbox"> 🔒 Ganzen Speed Dial mit PIN schützen</label>
+        <div id="globalPinFields" hidden>
+          <div class="two">
+            <label>PIN<input name="globalPin1" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
+            <label>PIN wiederholen<input name="globalPin2" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
+          </div>
+          <p class="muted small pin-hint" id="globalPinHint"></p>
+        </div>
+        <label>Automatisch wieder sperren
+          <select name="autoLockMin">
+            <option value="0">erst beim Schließen von Chrome</option>
+            <option value="5">nach 5 Minuten ohne Benutzung</option>
+            <option value="15">nach 15 Minuten ohne Benutzung</option>
+            <option value="30">nach 30 Minuten ohne Benutzung</option>
+            <option value="60">nach 1 Stunde ohne Benutzung</option>
+          </select>
+        </label>
+        <p class="muted small">Der rote Knopf oben rechts sperrt sofort.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Sicherung</legend>
+        <div class="row">
+          <button type="button" id="exportBtn">Als Datei exportieren</button>
+          <button type="button" id="importBtn">Datei importieren</button>
+          <input type="file" id="importFile" accept="application/json" hidden>
+        </div>
+        <p class="muted small">Zusätzlich legt die Erweiterung einmal täglich eine Kopie im Unterordner „backups“ auf dem NAS ab.</p>
+      </fieldset>
+
+      <div class="actions">
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Abbrechen</button>
+        <button value="ok" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- PIN-Eingabe -->
+  <div id="lockScreen" class="lock-screen" hidden>
+    <div class="lock-box">
+      <div class="big-lock">🔒</div>
+      <h2 id="lockTitle">Speed Dial gesperrt</h2>
+      <div id="pinArea">
+        <p class="muted">PIN eingeben</p>
+        <div id="pinDots" class="pin-dots"></div>
+        <div id="lockMsg" class="lock-msg"></div>
+        <div id="pinpad" class="pinpad">
+          <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+          <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+          <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+          <span></span><button type="button" data-k="0">0</button><button type="button" data-k="del" title="Löschen">⌫</button>
+        </div>
+      </div>
+      <form id="forgotForm">
+        <div id="forgotBox" hidden>
+          <p class="muted small" id="forgotHint"></p>
+          <input id="forgotPass" type="password" placeholder="NAS-Passwort" autocomplete="off">
+          <div class="actions"><button type="button" id="forgotBack">Zurück</button><span class="spacer"></span><button class="primary">PIN entfernen</button></div>
+        </div>
+      </form>
+      <div class="lock-links">
+        <button type="button" id="forgotPin" class="link-btn">PIN vergessen?</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="newtab.js"></script>
+  <script src="lock.js"></script>
+</body>
+</html>
