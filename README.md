@@ -4,6 +4,10 @@
 
 ![NAS Speed Dial – Gruppen als Reiter, Kacheln mit Vorschaubildern](screenshot.png)
 
+![Optionale PIN-Sperre als Sichtschutz](screenshot-pin.png)
+
+*Optional: PIN-Sperre als Sichtschutz – ein Klick auf den roten Ein/Aus-Knopf, und der Speed Dial ist gesperrt.*
+
 Aufgebaut wie die bekannten Speed-Dial-Erweiterungen: Gruppen als Reiter, große Kacheln mit Vorschaubildern der Seiten, alles per Maus sortierbar. Der Unterschied: Deine Daten liegen als eine einfache Datei auf deinem NAS. Kein Konto, kein fremder Server, keine Werbung.
 
 *English summary below.*
