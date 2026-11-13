@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NAS Speed Dial",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Speed Dial mit Gruppen und Vorschaubildern – gespeichert auf deiner Synology über WebDAV.",
   "chrome_url_overrides": {
     "newtab": "newtab.html"

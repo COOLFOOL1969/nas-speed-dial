@@ -134,6 +134,7 @@ function applyLook() {
 }
 
 let renderPending = false;
+let pendingGroupWish = null;   // ?gruppe=… , die erst nach dem NAS-Abgleich gefunden werden kann
 function render() {
   // Während gezogen wird nicht neu zeichnen (sonst bricht das Ziehen ab) – danach nachholen
   if (drag) { renderPending = true; return; }
@@ -690,6 +691,11 @@ async function syncFromNas() {
         data = remote;
         dirty = false;
         await chrome.storage.local.set({ data, dirty });
+        if (pendingGroupWish) {
+          const g = data.groups.find((x) => x.name.trim().toLowerCase() === pendingGroupWish);
+          if (g) { activeGroupId = g.id; chrome.storage.local.set({ activeGroupId }); }
+          pendingGroupWish = null;
+        }
         render();
         showIdleStatus();
       }
@@ -976,6 +982,14 @@ window.addEventListener("DOMContentLoaded", async function init() {
   nas = stored.nas || {};
   dirty = !!stored.dirty;
   activeGroupId = stored.activeGroupId || null;
+  // Aufruf mit ?gruppe=<Name oder ID> (z. B. von Jarvis): diese Gruppe anzeigen
+  const wunsch = new URLSearchParams(location.search).get("gruppe");
+  if (wunsch) {
+    const w = wunsch.trim().toLowerCase();
+    const g = data.groups.find((x) => x.id === wunsch) || data.groups.find((x) => x.name.trim().toLowerCase() === w);
+    if (g) { activeGroupId = g.id; chrome.storage.local.set({ activeGroupId }); }
+    else pendingGroupWish = w;      // Gruppe evtl. erst nach dem Laden vom NAS bekannt
+  }
   autoCapture = stored.autoCapture !== false;
   if (!stored.data) await chrome.storage.local.set({ data });
   await loadLockSession();
