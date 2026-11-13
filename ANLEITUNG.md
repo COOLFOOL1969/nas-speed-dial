@@ -126,7 +126,8 @@ Reiter → **Gruppe löschen** entfernen.
   **„Alle offenen Tabs dieses Fensters übernehmen“**. Bei einer bestehenden Gruppe geht das
   genauso über Doppelklick auf den Reiter.
 - **Seite bearbeiten/löschen:** mit der Maus über die Kachel → ✎ oder ✕
-- **Sortieren:** Kacheln und Reiter mit der Maus ziehen
+- **Sortieren:** Kacheln und Reiter mit der Maus ziehen – ein weißer Strich zeigt, wo sie landen
+  (linke Hälfte = davor, rechte Hälfte = dahinter)
 - **In andere Gruppe verschieben:** Kachel auf einen Reiter ziehen
 - **Vorschaubilder:** werden automatisch aufgenommen, wenn du eine Seite aus dem Speed Dial
   besuchst (alle 7 Tage neu). Oder im Bearbeiten-Dialog auf **📷 Vorschau aufnehmen**,

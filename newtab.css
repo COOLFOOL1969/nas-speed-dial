@@ -38,7 +38,13 @@ body {
 }
 .group-tab:hover { background: var(--tab-hover); }
 .group-tab.active { background: var(--tab-active); padding-top: 8px; }
+.group-tab { position: relative; }
 .group-tab.drop-target { outline: 2px solid #fff; }
+.group-tab.drop-before::before, .group-tab.drop-after::after {
+  content: ""; pointer-events: none; position: absolute; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: #fff;
+}
+.group-tab.drop-before::before { left: -5px; }
+.group-tab.drop-after::after { right: -5px; }
 .group-tab.dragging { opacity: .4; }
 .plus-btn {
   background: var(--tab); color: #fff; border: none; border-radius: 0 0 5px 5px;
@@ -103,10 +109,12 @@ main { padding: 26px 20px 60px; }
 }
 .tools button:hover { background: #000; }
 .tile.dragging { opacity: .3; }
-.tile.drop-before::before {
-  content: ""; position: absolute; left: -7px; top: 0; bottom: 0; width: 4px;
-  border-radius: 2px; background: #fff;
+.tile.drop-before::before, .tile.drop-after::after {
+  content: ""; pointer-events: none; position: absolute; top: 0; bottom: 0; width: 4px;
+  border-radius: 2px; background: #fff; z-index: 3;
 }
+.tile.drop-before::before { left: -7px; }
+.tile.drop-after::after { right: -7px; }
 .add-tile {
   width: var(--tile); aspect-ratio: 16 / 10;
   border: 2px dashed #444; border-radius: var(--radius);

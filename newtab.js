@@ -133,7 +133,11 @@ function applyLook() {
     ? `repeat(${s.columns}, var(--tile))` : "repeat(auto-fill, var(--tile))";
 }
 
+let renderPending = false;
 function render() {
+  // Während gezogen wird nicht neu zeichnen (sonst bricht das Ziehen ab) – danach nachholen
+  if (drag) { renderPending = true; return; }
+  renderPending = false;
   if (!groupById(activeGroupId)) activeGroupId = data.groups[0]?.id;
   applyLook();
   renderGroups();
@@ -143,44 +147,128 @@ function render() {
 
 let drag = null; // { kind: "dial"|"group", id }
 
+function startDrag(e, kind, id, elem) {
+  drag = { kind, id };
+  elem.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", ""); // nötig, damit Ziehen überall zuverlässig startet
+}
+function endDrag() {
+  drag = null;
+  clearDropMarks();
+  render();
+}
+function clearDropMarks() {
+  document.querySelectorAll(".drop-before, .drop-after, .drop-target").forEach((x) =>
+    x.classList.remove("drop-before", "drop-after", "drop-target"));
+}
+// Liegt die Maus in der linken oder rechten Hälfte des Elements?
+function sideOf(e, elem) {
+  const r = elem.getBoundingClientRect();
+  return e.clientX < r.left + r.width / 2 ? "before" : "after";
+}
+function markSide(elem, side) {
+  const cls = side === "before" ? "drop-before" : "drop-after";
+  if (elem.classList.contains(cls)) return; // nichts ändern, sonst flackert die Anzeige
+  clearDropMarks();
+  elem.classList.add(cls);
+}
+
+// Element aus einer Liste nehmen und vor/hinter ein anderes setzen
+function moveInList(list, item, target, side) {
+  const from = list.indexOf(item);
+  if (from < 0) return false;
+  list.splice(from, 1);
+  let to = target ? list.indexOf(target) : list.length;
+  if (to < 0) to = list.length;
+  else if (target && side === "after") to += 1;
+  list.splice(to, 0, item);
+  return list.indexOf(item) !== from;
+}
+
 function renderGroups() {
   const nav = $("#groups");
   nav.replaceChildren();
   for (const g of data.groups) {
     const tab = el("button", {
       class: "group-tab" + (g.id === activeGroupId ? " active" : ""),
+      "data-id": g.id,
       draggable: "true",
-      title: `${g.dials.length} Seiten · Doppelklick oder Rechtsklick zum Bearbeiten`,
+      title: `${g.dials.length} Seiten · Ziehen zum Sortieren · Doppelklick oder Rechtsklick zum Bearbeiten`,
       onclick: () => { activeGroupId = g.id; chrome.storage.local.set({ activeGroupId }); render(); },
       ondblclick: () => openGroupDialog(g.id),
       oncontextmenu: (e) => { e.preventDefault(); openGroupDialog(g.id); },
-      ondragstart: (e) => { drag = { kind: "group", id: g.id }; tab.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; },
-      ondragend: () => { drag = null; render(); },
-      ondragover: (e) => { if (drag) { e.preventDefault(); tab.classList.add("drop-target"); } },
-      ondragleave: () => tab.classList.remove("drop-target"),
-      ondrop: (e) => {
+      ondragstart: (e) => startDrag(e, "group", g.id, tab),
+      ondragend: endDrag,
+      // Kachel auf einen Reiter ziehen = in diese Gruppe verschieben.
+      // (Gruppen selbst sortiert die ganze Kopfzeile, siehe unten.)
+      ondragover: (e) => {
+        if (drag?.kind !== "dial") return;
         e.preventDefault();
-        if (!drag) return;
-        if (drag.kind === "dial") {
-          const f = findDial(drag.id);
-          if (f && f.group.id !== g.id) {
-            f.group.dials.splice(f.index, 1);
-            g.dials.push(f.dial);
-            save();
-            toast(`„${f.dial.title}“ nach „${g.name}“ verschoben`);
-          }
-        } else if (drag.kind === "group" && drag.id !== g.id) {
-          const from = data.groups.findIndex((x) => x.id === drag.id);
-          const [moved] = data.groups.splice(from, 1);
-          data.groups.splice(data.groups.indexOf(g), 0, moved);
-          save();
-        }
+        clearDropMarks();
+        tab.classList.add("drop-target");
+      },
+      ondragleave: () => { if (drag?.kind === "dial") tab.classList.remove("drop-target"); },
+      ondrop: (e) => {
+        if (drag?.kind !== "dial") return;
+        e.preventDefault();
+        e.stopPropagation();
+        const d = drag;
         drag = null;
+        clearDropMarks();
+        const f = findDial(d.id);
+        if (f && f.group.id !== g.id) {
+          f.group.dials.splice(f.index, 1);
+          g.dials.push(f.dial);
+          save();
+          toast(`„${f.dial.title}“ nach „${g.name}“ verschoben`);
+        } else render();
       },
     }, g.name);
     nav.append(tab);
   }
 }
+
+// Gruppen sortieren: Überall in der Kopfzeile zählt der Reiter, der der Maus am nächsten ist.
+// So klappt es auch in den Lücken zwischen den Reitern, knapp darüber/darunter oder hinter dem letzten.
+function groupDropSpot(e) {
+  const others = [...document.querySelectorAll(".group-tab")].filter((t) => t.dataset.id !== drag.id);
+  let best = null, bestDist = Infinity;
+  others.forEach((t, i) => {
+    const r = t.getBoundingClientRect();
+    const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+    const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+    const dist = dx * dx + dy * dy * 4; // gleiche Zeile bevorzugen, falls die Reiter umbrechen
+    if (dist < bestDist) { bestDist = dist; best = { tab: t, index: i, side: sideOf(e, t) }; }
+  });
+  return best;
+}
+// Ablagebereich für Gruppen: die Kopfzeile plus ein großzügiger Streifen darunter
+function inGroupZone(e) {
+  const bottom = document.querySelector(".topbar").getBoundingClientRect().bottom;
+  return e.clientY <= bottom + 50;
+}
+document.addEventListener("dragover", (e) => {
+  if (drag?.kind !== "group") return;
+  if (!inGroupZone(e)) { clearDropMarks(); return; }
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  const spot = groupDropSpot(e);
+  if (spot) markSide(spot.tab, spot.side); else clearDropMarks();
+});
+document.addEventListener("drop", (e) => {
+  if (drag?.kind !== "group" || !inGroupZone(e)) return;
+  e.preventDefault();
+  const spot = groupDropSpot(e);
+  const moved = groupById(drag.id);
+  drag = null;
+  clearDropMarks();
+  if (!spot || !moved) { render(); return; }
+  const from = data.groups.indexOf(moved);
+  data.groups.splice(from, 1);
+  data.groups.splice(spot.index + (spot.side === "after" ? 1 : 0), 0, moved);
+  if (data.groups.indexOf(moved) !== from) save(); else render();
+});
 
 function thumbContent(d) {
   const box = el("div", { class: "thumb", style: `--tile-color:${tileColor(d.url)}` });
@@ -202,12 +290,21 @@ function renderGrid() {
   for (const d of g.dials) {
     const tile = el("div", {
       class: "tile",
+      "data-id": d.id,
       draggable: "true",
-      ondragstart: (e) => { drag = { kind: "dial", id: d.id }; tile.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; },
-      ondragend: () => { drag = null; render(); },
-      ondragover: (e) => { if (drag?.kind === "dial" && drag.id !== d.id) { e.preventDefault(); tile.classList.add("drop-before"); } },
-      ondragleave: () => tile.classList.remove("drop-before"),
-      ondrop: (e) => { e.preventDefault(); moveDialBefore(drag?.id, g.id, d.id); },
+      ondragstart: (e) => startDrag(e, "dial", d.id, tile),
+      ondragend: endDrag,
+      ondragover: (e) => {
+        if (drag?.kind !== "dial" || drag.id === d.id) return;
+        e.preventDefault();
+        markSide(tile, sideOf(e, tile));
+      },
+      ondragleave: (e) => { if (!tile.contains(e.relatedTarget)) tile.classList.remove("drop-before", "drop-after"); },
+      ondrop: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        moveDial(drag?.id, g.id, d.id, sideOf(e, tile));
+      },
     });
     const link = el("a", { href: d.url, title: `${d.title}\n${d.url}`, draggable: "false" }, thumbContent(d));
     if (!data.settings.showTitles) link.append(el("div", { class: "hover-title" }, d.title));
@@ -224,8 +321,8 @@ function renderGrid() {
     grid.append(el("button", {
       class: "add-tile", title: "Seite hinzufügen",
       onclick: () => openDialDialog(null),
-      ondragover: (e) => { if (drag?.kind === "dial") e.preventDefault(); },
-      ondrop: (e) => { e.preventDefault(); moveDialBefore(drag?.id, g.id, null); },
+      ondragover: (e) => { if (drag?.kind === "dial") { e.preventDefault(); clearDropMarks(); } },
+      ondrop: (e) => { e.preventDefault(); e.stopPropagation(); moveDial(drag?.id, g.id, null, "after"); },
     }, "＋"));
   } else if (!g.dials.length) {
     grid.append(el("p", { class: "empty-hint" },
@@ -234,15 +331,48 @@ function renderGrid() {
   }
 }
 
-function moveDialBefore(dialId, groupId, beforeId) {
+// Kachel in eine Lücke oder auf freie Fläche im Raster ziehen: die nächstgelegene Kachel zählt
+// (rechts neben/unter der letzten Kachel = ans Ende; klappt auch ohne ＋-Kachel)
+function tileDropSpot(e) {
+  let best = null, bestDist = Infinity;
+  document.querySelectorAll("#grid .tile").forEach((t) => {
+    const r = t.getBoundingClientRect();
+    const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+    const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+    const dist = dx * dx + dy * dy * 4; // gleiche Reihe bevorzugen
+    if (dist < bestDist) { bestDist = dist; best = { tile: t, side: sideOf(e, t) }; }
+  });
+  return best;
+}
+$("#grid").addEventListener("dragover", (e) => {
+  if (drag?.kind !== "dial" || e.target !== e.currentTarget) return;
+  e.preventDefault();
+  const spot = tileDropSpot(e);
+  if (spot && spot.tile.dataset.id !== drag.id) markSide(spot.tile, spot.side); else clearDropMarks();
+});
+$("#grid").addEventListener("drop", (e) => {
+  if (drag?.kind !== "dial" || e.target !== e.currentTarget) return;
+  e.preventDefault();
+  const spot = tileDropSpot(e);
+  moveDial(drag.id, activeGroupId, spot ? spot.tile.dataset.id : null, spot ? spot.side : "after");
+});
+
+function moveDial(dialId, groupId, targetId, side) {
+  drag = null;
+  clearDropMarks();
   const f = findDial(dialId);
   const g = groupById(groupId);
-  if (!f || !g) return;
-  f.group.dials.splice(f.index, 1);
-  const idx = beforeId ? g.dials.findIndex((x) => x.id === beforeId) : -1;
-  if (idx >= 0) g.dials.splice(idx, 0, f.dial); else g.dials.push(f.dial);
-  drag = null;
-  save();
+  if (!f || !g || dialId === targetId) { render(); return; }
+  let changed;
+  if (f.group === g) {
+    changed = moveInList(g.dials, f.dial, targetId ? g.dials.find((x) => x.id === targetId) : null, side);
+  } else {
+    f.group.dials.splice(f.index, 1);
+    const idx = targetId ? g.dials.findIndex((x) => x.id === targetId) : -1;
+    if (idx < 0) g.dials.push(f.dial); else g.dials.splice(side === "after" ? idx + 1 : idx, 0, f.dial);
+    changed = true;
+  }
+  if (changed) save(); else render();
 }
 
 function deleteDial(id) {
